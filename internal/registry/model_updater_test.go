@@ -32,3 +32,28 @@ func TestDetectChangedProviders_KimiAliases(t *testing.T) {
 		}
 	}
 }
+
+func TestAddLocalModels_FillsGapUntilUpstreamListsModel(t *testing.T) {
+	data := &staticModelsJSON{Claude: []*ModelInfo{{ID: "claude-opus-5-5"}}}
+	addLocalModels(data)
+	if got := claudeIDCount(data, "claude-sonnet-5-5"); got != 1 {
+		t.Fatalf("catalog without claude-sonnet-5-5: got %d entries, want 1", got)
+	}
+
+	upstream := &ModelInfo{ID: "claude-sonnet-5-5", DisplayName: "upstream"}
+	data = &staticModelsJSON{Claude: []*ModelInfo{upstream}}
+	addLocalModels(data)
+	if got := claudeIDCount(data, "claude-sonnet-5-5"); got != 1 || data.Claude[0] != upstream {
+		t.Fatalf("catalog with claude-sonnet-5-5: got %d entries, want upstream's entry only", got)
+	}
+}
+
+func claudeIDCount(data *staticModelsJSON, id string) int {
+	n := 0
+	for _, m := range data.Claude {
+		if m.ID == id {
+			n++
+		}
+	}
+	return n
+}
