@@ -341,13 +341,20 @@ func addLocalModels(data *staticModelsJSON) {
 		log.Warnf("registry: failed to parse local models.json: %v", err)
 		return
 	}
-	known := make(map[string]bool, len(data.Claude))
-	for _, m := range data.Claude {
+	addMissingModels(&data.Claude, local.Claude)
+	addMissingModels(&data.CodexTeam, local.CodexTeam)
+	addMissingModels(&data.CodexPlus, local.CodexPlus)
+	addMissingModels(&data.CodexPro, local.CodexPro)
+}
+
+func addMissingModels(section *[]*ModelInfo, local []*ModelInfo) {
+	known := make(map[string]bool, len(*section))
+	for _, m := range *section {
 		known[m.ID] = true
 	}
-	for _, m := range local.Claude {
+	for _, m := range local {
 		if !known[m.ID] {
-			data.Claude = append(data.Claude, m)
+			*section = append(*section, m)
 		}
 	}
 }
