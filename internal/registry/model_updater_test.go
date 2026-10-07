@@ -46,3 +46,44 @@ func TestDetectChangedProviders_KimiAliases(t *testing.T) {
 		}
 	}
 }
+
+func TestAddLocalModels_FillsGapUntilUpstreamListsModel(t *testing.T) {
+	data := &staticModelsJSON{Claude: []*ModelInfo{{ID: "claude-sonnet-5-5"}}}
+	addLocalModels(data)
+	if got := idCount(data.Claude, "claude-haiku-5-5"); got != 1 {
+		t.Fatalf("catalog without claude-haiku-5-5: got %d entries, want 1", got)
+	}
+
+	upstream := &ModelInfo{ID: "claude-haiku-5-5", DisplayName: "upstream"}
+	data = &staticModelsJSON{Claude: []*ModelInfo{upstream}}
+	addLocalModels(data)
+	if got := idCount(data.Claude, "claude-haiku-5-5"); got != 1 || data.Claude[0] != upstream {
+		t.Fatalf("catalog with claude-haiku-5-5: got %d entries, want upstream's entry only", got)
+	}
+}
+
+func TestPublishCatalogBytes_KeepsLocalModelsAcrossRemoteRefresh(t *testing.T) {
+	previous := getModels()
+	t.Cleanup(func() {
+		modelsCatalogStore.mu.Lock()
+		modelsCatalogStore.data = previous
+		modelsCatalogStore.mu.Unlock()
+	})
+
+	if _, err := publishCatalogBytes(embeddedModelsJSON); err != nil {
+		t.Fatalf("publish embedded catalog: %v", err)
+	}
+	if got := idCount(getModels().Claude, "claude-haiku-5-5"); got != 1 {
+		t.Fatalf("published catalog: got %d claude-haiku-5-5 entries, want 1", got)
+	}
+}
+
+func idCount(section []*ModelInfo, id string) int {
+	n := 0
+	for _, m := range section {
+		if m.ID == id {
+			n++
+		}
+	}
+	return n
+}
