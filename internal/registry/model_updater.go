@@ -24,6 +24,13 @@ var modelsURLs = []string{
 //go:embed models/models.json
 var embeddedModelsJSON []byte
 
+// Models published before the upstream catalog lists them. Each entry is added
+// only while the loaded catalog lacks its ID, so the upstream definition wins
+// once it lands and every other model keeps following the remote catalog.
+//
+//go:embed models/local_models.json
+var localModelsJSON []byte
+
 type modelStore struct {
 	mu   sync.RWMutex
 	data *staticModelsJSON
@@ -200,11 +207,36 @@ func loadModelsFromBytes(data []byte, source string) error {
 	if err := validateModelsCatalog(&parsed); err != nil {
 		return fmt.Errorf("%s: validate models catalog: %w", source, err)
 	}
+	addLocalModels(&parsed)
 
 	modelsCatalogStore.mu.Lock()
 	modelsCatalogStore.data = &parsed
 	modelsCatalogStore.mu.Unlock()
 	return nil
+}
+
+func addLocalModels(data *staticModelsJSON) {
+	var local staticModelsJSON
+	if err := json.Unmarshal(localModelsJSON, &local); err != nil {
+		log.Warnf("registry: failed to parse local models.json: %v", err)
+		return
+	}
+	addMissingModels(&data.Claude, local.Claude)
+	addMissingModels(&data.CodexTeam, local.CodexTeam)
+	addMissingModels(&data.CodexPlus, local.CodexPlus)
+	addMissingModels(&data.CodexPro, local.CodexPro)
+}
+
+func addMissingModels(section *[]*ModelInfo, local []*ModelInfo) {
+	known := make(map[string]bool, len(*section))
+	for _, m := range *section {
+		known[m.ID] = true
+	}
+	for _, m := range local {
+		if !known[m.ID] {
+			*section = append(*section, m)
+		}
+	}
 }
 
 func getModels() *staticModelsJSON {
